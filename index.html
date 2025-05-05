@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>JSSA勤怠管理</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#3b82f6" />
   <style>
     body {
       font-family: sans-serif;
@@ -17,6 +19,13 @@
       padding: 0.5em;
       font-size: 1em;
     }
+    .backup {
+      background-color: #10b981;
+      color: white;
+      font-weight: bold;
+      font-size: 1.1em;
+      border: 2px solid #0f766e;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -27,9 +36,15 @@
       padding: 0.5em;
       text-align: center;
     }
+    @media print {
+      button, select, input {
+        display: none;
+      }
+    }
   </style>
 </head>
 <body>
+  <button class="backup" onclick="backupToGoogle()">📤 Googleにバックアップ</button>
   <h1>JSSA勤怠管理</h1>
   <label>氏名：<input type="text" id="name"></label>
   <label>日付：<input type="date" id="date"></label>
@@ -43,7 +58,7 @@
   <label>備考：<input type="text" id="note"></label>
   <button onclick="addRecord()">記録を追加</button>
   <button onclick="exportCSV()">CSVでエクスポート</button>
-
+  <label>月でフィルター：<input type="month" id="monthFilter" onchange="renderRecords()"></label>
   <table id="recordsTable">
     <thead>
       <tr>
@@ -59,6 +74,7 @@
     const hoursInput = document.getElementById('hours');
     const minutesInput = document.getElementById('minutes');
     const noteInput = document.getElementById('note');
+    const monthFilter = document.getElementById('monthFilter');
     const tbody = document.querySelector('#recordsTable tbody');
 
     let records = JSON.parse(localStorage.getItem('kintaiRecords')) || [];
@@ -69,17 +85,20 @@
 
     function renderRecords() {
       tbody.innerHTML = '';
+      const filterMonth = monthFilter.value;
       records.forEach((r, i) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${r.name}</td>
-          <td>${r.date}</td>
-          <td>${r.hours}</td>
-          <td>${r.minutes}</td>
-          <td>${r.note}</td>
-          <td><button onclick="deleteRecord(${i})">削除</button></td>
-        `;
-        tbody.appendChild(tr);
+        if (!filterMonth || r.date.startsWith(filterMonth)) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${r.name}</td>
+            <td>${r.date}</td>
+            <td>${r.hours}</td>
+            <td>${r.minutes}</td>
+            <td>${r.note}</td>
+            <td><button onclick="deleteRecord(${i})">削除</button></td>
+          `;
+          tbody.appendChild(tr);
+        }
       });
     }
 
@@ -118,6 +137,27 @@
       link.href = URL.createObjectURL(blob);
       link.download = 'kintai.csv';
       link.click();
+    }
+
+    function backupToGoogle() {
+      if (!records.length) return alert("バックアップする記録がありません");
+
+      const lastRecord = records[records.length - 1];
+
+      fetch("https://script.google.com/macros/s/AKfycbxoTzlZDp7FeezjRrWibD7K5D4TuBNIM-v5H4I587PH5KTtENcUl6tQvSWM_Tk_b9E3/exec", {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(lastRecord)
+      })
+      .then(() => alert("Google Sheetsにバックアップしました"))
+      .catch(() => alert("バックアップに失敗しました"));
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js');
     }
 
     renderRecords();
